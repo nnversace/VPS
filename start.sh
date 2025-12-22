@@ -6,7 +6,7 @@ umask 022
 #--- 全局常量 ---
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly MODULE_BASE_URL="https://raw.githubusercontent.com/nnversace/winter/main/modules"
+readonly MODULE_BASE_URL="https://raw.githubusercontent.com/nnversace/VPS/main/modules"
 readonly TEMP_DIR="$(mktemp -d /tmp/debian-setup-modules.XXXXXX)"
 readonly LOG_FILE="/var/log/debian-custom-setup.log"
 readonly SUMMARY_FILE="/root/deployment_summary_custom.txt"
