@@ -140,22 +140,23 @@ detect_arch() {
 }
 
 get_latest_release() {
-    log_info "正在获取 sing-box 最新版本信息..."
+    log_info "正在获取 sing-box 最新版本信息..." >&2
     local api_url="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
     
     local arch
     arch=$(detect_arch)
     
-    local download_url version
-    download_url=$(curl -fsSL "$api_url" | jq -r ".assets[] | select(.name | contains(\"linux-${arch}\") and endswith(\".tar.gz\")) | .browser_download_url" | head -n1)
-    version=$(curl -fsSL "$api_url" | jq -r '.tag_name' | sed 's/^v//')
+    local api_response download_url version
+    api_response=$(curl -fsSL "$api_url")
+    download_url=$(echo "$api_response" | jq -r ".assets[] | select(.name | contains(\"linux-${arch}\") and endswith(\".tar.gz\")) | .browser_download_url" | head -n1)
+    version=$(echo "$api_response" | jq -r '.tag_name' | sed 's/^v//')
     
     if [[ -z "$download_url" ]]; then
         log_error "无法获取 sing-box 下载链接。请检查网络或访问 https://github.com/SagerNet/sing-box/releases"
         exit 1
     fi
     
-    log_info "成功获取下载链接 (版本 $version): $download_url"
+    log_info "成功获取下载链接 (版本 $version): $download_url" >&2
     echo "$download_url"
 }
 
