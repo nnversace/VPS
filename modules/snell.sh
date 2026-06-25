@@ -13,7 +13,7 @@
 #   PSK  : IUmuU/NjIQhHPMdBz5WONA==
 #   PORT : 53100
 #   SNELL_MAJOR   : 5 (可选: 5/6)
-#   SNELL_VERSION : 5.0.1 (v6 beta 默认: 6.0.0b1)
+#   SNELL_VERSION : 未指定时自动检测最新版本 (v6 默认回退: 6.0.0b4)
 #   LISTEN : 自定义监听地址 (默认: 0.0.0.0:${PORT})
 #   DNS_IP_PREFERENCE : v6 可选 DNS 地址族偏好
 #
@@ -30,13 +30,14 @@ readonly DEFAULT_PSK="IUmuU/NjIQhHPMdBz5WONA=="
 readonly DEFAULT_PORT="53100"
 readonly DEFAULT_MAJOR="5"
 readonly DEFAULT_V5_VERSION="5.0.1"
-readonly DEFAULT_V6_VERSION="6.0.0b1"
+readonly DEFAULT_V6_VERSION="6.0.0b4"
 readonly V5_VERSION_FALLBACKS=("5.0.1" "5.0.0" "4.1.1" "4.1.0")
-readonly V6_VERSION_FALLBACKS=("6.0.0b1")
+readonly V6_VERSION_FALLBACKS=("6.0.0b4" "6.0.0b3" "6.0.0b2" "6.0.0b1")
 readonly INSTALL_PATH="/usr/local/bin"
 readonly CONFIG_DIR="/etc/snell"
 readonly SERVICE_FILE="/etc/systemd/system/snell.service"
 readonly DOWNLOAD_BASE_URL="https://dl.nssurge.com/snell"
+readonly RELEASE_NOTES_URL="https://kb.nssurge.com/surge-knowledge-base/release-notes/snell"
 TMP_DIR=""
 EXTRACTED_BINARY=""
 DOWNLOADED_VERSION=""
@@ -183,14 +184,14 @@ print_usage() {
 
 选项:
   --major 5|6              选择 Snell 主版本 (默认: ${DEFAULT_MAJOR})
-  --version VERSION        指定 Snell 服务端版本 (如: ${DEFAULT_V5_VERSION}, ${DEFAULT_V6_VERSION})
+  --version VERSION        指定 Snell 服务端版本；未指定时自动检测最新版本
   -h, --help               显示本帮助信息
 
 环境变量:
   PSK                      预共享密钥
   PORT                     监听端口
   SNELL_MAJOR              Snell 主版本 (5/6)
-  SNELL_VERSION            Snell 服务端版本
+  SNELL_VERSION            Snell 服务端版本；未指定时自动检测最新版本
   LISTEN                   自定义 listen 配置值
   DNS_IP_PREFERENCE        v6 DNS 地址族偏好: default/prefer-ipv4/prefer-ipv6/ipv4-only/ipv6-only
 
@@ -245,6 +246,38 @@ infer_major_from_version() {
     esac
 }
 
+detect_latest_version() {
+    local major="$1"
+    local fallback
+    case "$major" in
+        6) fallback="$DEFAULT_V6_VERSION" ;;
+        *) fallback="$DEFAULT_V5_VERSION" ;;
+    esac
+
+    local release_notes latest
+    if ! release_notes=$(curl -fsSL --connect-timeout 8 --max-time 20 "$RELEASE_NOTES_URL" 2>/dev/null); then
+        log_warn "无法获取 Snell Release Notes，使用默认版本 ${fallback}。" >&2
+        echo "$fallback"
+        return
+    fi
+
+    latest=$(
+        printf '%s\n' "$release_notes" |
+            grep -Eo "snell-server-v${major}\\.[0-9]+\\.[0-9]+(b[0-9]+)?-[A-Za-z0-9_-]+\\.zip|v${major}\\.[0-9]+\\.[0-9]+(b[0-9]+)?" |
+            sed -E "s/^snell-server-v//; s/-[A-Za-z0-9_-]+\\.zip$//; s/^v//" |
+            sort -Vu |
+            tail -n 1
+    )
+
+    if [[ -z "$latest" ]]; then
+        log_warn "未能在 Release Notes 中检测到 Snell v${major} 最新版本，使用默认版本 ${fallback}。" >&2
+        echo "$fallback"
+        return
+    fi
+
+    echo "$latest"
+}
+
 choose_version() {
     if [[ -z "$SNELL_MAJOR" && -n "$SELECTED_VERSION" ]]; then
         SNELL_MAJOR="$(infer_major_from_version "$SELECTED_VERSION")"
@@ -253,7 +286,7 @@ choose_version() {
     if [[ -z "$SNELL_MAJOR" && -t 0 ]]; then
         echo "请选择要安装的 Snell 版本："
         echo "1) Snell v5 稳定版 (${DEFAULT_V5_VERSION})"
-        echo "2) Snell v6 Beta (${DEFAULT_V6_VERSION})"
+        echo "2) Snell v6 Beta (自动检测最新，默认回退 ${DEFAULT_V6_VERSION})"
         read -rp "请输入选项 [1-2，默认 1]: " choice
         case "${choice:-1}" in
             2) SNELL_MAJOR="6" ;;
@@ -268,10 +301,10 @@ choose_version() {
     SNELL_MAJOR="${SNELL_MAJOR:-$DEFAULT_MAJOR}"
     case "$SNELL_MAJOR" in
         5)
-            SELECTED_VERSION="${SELECTED_VERSION:-$DEFAULT_V5_VERSION}"
+            SELECTED_VERSION="${SELECTED_VERSION:-$(detect_latest_version 5)}"
             ;;
         6)
-            SELECTED_VERSION="${SELECTED_VERSION:-$DEFAULT_V6_VERSION}"
+            SELECTED_VERSION="${SELECTED_VERSION:-$(detect_latest_version 6)}"
             log_warn "Snell v6 当前仍处于 Beta，请确保客户端与服务端版本保持同步。"
             ;;
         *)
