@@ -18,7 +18,7 @@ declare -A MODULES=(
     ["auto-update-setup"]="自动更新系统配置"
     ["mosdns-x"]="MosDNS-X DNS 加速服务"
     ["sing-box"]="sing-box 代理服务器 (SS 2022)"
-    ["snell"]="Snell v5 代理服务器安装"
+    ["snell"]="Snell v5/v6 代理服务器安装"
 )
 
 # 预定义的推荐执行顺序，未在 MODULES 中的条目会被忽略
